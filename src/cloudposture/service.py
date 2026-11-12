@@ -116,6 +116,54 @@ class CloudPostureService:
             checks.append(("IAM_MFA", "IAM user does not have MFA enabled", "high", "mfa_enabled=false", "Require MFA for the user."))
         if not tags.get("owner") or not tags.get("environment"):
             checks.append(("TAGS_REQUIRED", "Resource is missing owner/environment tags", "medium", "owner/environment missing", "Apply the required tagging standard."))
+
+        # HISF / HISO 10029:2022 & NZISM Health Security Framework Evaluation
+        is_health_data = tags.get("data_classification") in {"phi", "health_info", "restricted"} or tags.get("domain") == "healthcare"
+
+        if resource.resource_type in {"api_gateway", "http_endpoint"}:
+            if not config.get("auth_enabled", True) or config.get("allow_unauthenticated", False):
+                checks.append((
+                    "HISF_API_AUTH_REQUIRED",
+                    "Health API gateway allows unauthenticated access to health endpoints",
+                    "critical",
+                    "auth_enabled=false or allow_unauthenticated=true",
+                    "Enforce mandatory token-based authentication (OAuth2/OIDC) and reject anonymous API access per HISO 10029."
+                ))
+            min_tls = str(config.get("min_tls_version", "1.2"))
+            if min_tls in {"1.0", "1.1"} or config.get("allow_insecure_http", False):
+                checks.append((
+                    "NZISM_TLS_MODERN",
+                    "Endpoint allows insecure or deprecated TLS/HTTP protocols",
+                    "high",
+                    f"min_tls_version={min_tls} allow_insecure_http={config.get('allow_insecure_http', False)}",
+                    "Configure minimum TLS version 1.2 or 1.3 and disable unencrypted HTTP per NZISM Section 17.1."
+                ))
+
+        if is_health_data or resource.resource_type in {"health_data_store", "ehr_database"}:
+            if not config.get("encrypted", False) or not config.get("kms_key_id"):
+                checks.append((
+                    "HISF_PHI_ENCRYPTION_REST",
+                    "Health data repository lacks customer-managed key encryption at rest",
+                    "critical",
+                    f"encrypted={config.get('encrypted', False)} kms_key_id={config.get('kms_key_id')}",
+                    "Enable envelope encryption with a dedicated customer-managed KMS key in compliance with HISO 10029 Section 9.4."
+                ))
+            if not config.get("audit_logging_enabled", False) or int(config.get("audit_retention_days", 0)) < 365:
+                checks.append((
+                    "HISF_AUDIT_LOGGING_RETENTION",
+                    "Audit logging is disabled or retention period is under 365 days for health data",
+                    "high",
+                    f"audit_logging_enabled={config.get('audit_logging_enabled', False)} retention={config.get('audit_retention_days', 0)}",
+                    "Enable comprehensive immutable access logging with >= 365 days retention per HISO 10029 Section 12.1."
+                ))
+            if not config.get("automated_backups", False) or not config.get("backup_immutability", False):
+                checks.append((
+                    "NZISM_BACKUP_PROTECTION",
+                    "Health system lacks automated immutable backup protection",
+                    "high",
+                    f"automated_backups={config.get('automated_backups', False)} backup_immutability={config.get('backup_immutability', False)}",
+                    "Enable automated daily snapshots with object lock/WORM immutability per NZISM Section 16.3."
+                ))
         for rule_id, title, severity, evidence, remediation in checks:
             finding = self.session.scalar(
                 select(FindingRow).where(FindingRow.resource_id == resource.id, FindingRow.rule_id == rule_id)

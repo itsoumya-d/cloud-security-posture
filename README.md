@@ -9,6 +9,11 @@ A production-oriented cloud security posture service:
   and other resource types.
 - CIS-style checks: public storage, missing encryption, open admin ports,
   missing MFA and required tags.
+- Health Information Security Framework (HISO 10029:2022 / HISF) and NZISM
+  compliance evaluations: unauthenticated API gateway detection, mandatory
+  token auth, modern TLS (>=1.2/1.3) enforcement, PHI customer-managed key
+  encryption at rest, immutable access audit logging (>=365 days retention),
+  and WORM backup protection.
 - Deduplicated findings with severity, evidence and remediation guidance.
 - Resolution workflow; findings reopen if a later snapshot regresses.
 - Security summary and persisted audit trail.
