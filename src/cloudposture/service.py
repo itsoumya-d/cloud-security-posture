@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .tables import AccountRow, AuditRow, FindingRow, ResourceRow
+from .registry_posture import evaluate_nzx_registry_posture
 
 PROVIDERS = {"aws", "azure", "gcp"}
 SEVERITIES = {"critical", "high", "medium", "low"}
@@ -164,6 +165,10 @@ class CloudPostureService:
                     f"automated_backups={config.get('automated_backups', False)} backup_immutability={config.get('backup_immutability', False)}",
                     "Enable automated daily snapshots with object lock/WORM immutability per NZISM Section 16.3."
                 ))
+
+        # NZX Modern Registry & FMA Financial Posture Evaluation
+        checks.extend(evaluate_nzx_registry_posture(resource.resource_type, config, tags))
+
         for rule_id, title, severity, evidence, remediation in checks:
             finding = self.session.scalar(
                 select(FindingRow).where(FindingRow.resource_id == resource.id, FindingRow.rule_id == rule_id)
