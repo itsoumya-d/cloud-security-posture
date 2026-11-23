@@ -6,6 +6,7 @@ from sqlalchemy.pool import StaticPool
 from cloudposture.db import Base
 from cloudposture.service import CloudPostureService
 
+
 @pytest.fixture()
 def session():
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)

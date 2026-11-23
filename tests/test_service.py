@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from cloudposture.db import Base
-from cloudposture.service import CloudPostureService, NotFoundError, ValidationError
+from cloudposture.service import CloudPostureService, ValidationError
 
 
 @pytest.fixture()
