@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .tables import AccountRow, AuditRow, FindingRow, ResourceRow
 from .registry_posture import evaluate_nzx_registry_posture
+from .tables import AccountRow, AuditRow, FindingRow, ResourceRow
 
 PROVIDERS = {"aws", "azure", "gcp"}
 SEVERITIES = {"critical", "high", "medium", "low"}
@@ -87,7 +87,7 @@ class CloudPostureService:
             existing.region = str(raw.get("region") or "")
             existing.config = json.dumps(_config(raw), sort_keys=True)
             existing.tags = json.dumps(_tags(raw), sort_keys=True)
-            existing.captured_at = datetime.now(timezone.utc)
+            existing.captured_at = datetime.now(UTC)
             self.session.flush()
             self._evaluate(existing)
         self._audit("resources_synced", str(account_id), f"created={created} updated={updated}")
@@ -196,7 +196,7 @@ class CloudPostureService:
         if not note.strip():
             raise ValidationError("resolution note is required")
         finding.status = "resolved"
-        finding.resolved_at = datetime.now(timezone.utc)
+        finding.resolved_at = datetime.now(UTC)
         finding.evidence = f"{finding.evidence}; resolved: {note}"
         self._audit("finding_resolved", str(finding.id), note)
         self.session.commit()

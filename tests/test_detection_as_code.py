@@ -1,6 +1,7 @@
 """Tests for Detection-as-Code engine, rule lifecycle, and triage automation."""
 
 import pytest
+
 from cloudposture.detection_engine import (
     DetectionEngine,
     DetectionRule,
@@ -11,7 +12,7 @@ from cloudposture.detection_engine import (
     build_anomalous_iam_assume_role_rule,
     build_aws_console_login_without_mfa_rule,
 )
-from cloudposture.triage_automation import AlertTriagePipeline, TriageContext
+from cloudposture.triage_automation import AlertTriagePipeline
 
 
 def test_rule_registration_and_retrieval():

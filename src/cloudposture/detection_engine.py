@@ -6,9 +6,10 @@ and a deterministic test harness for verifying detection rules before production
 from __future__ import annotations
 
 import enum
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Set
+from datetime import UTC, datetime
+from typing import Any
 
 
 class DetectionSeverity(str, enum.Enum):
@@ -35,7 +36,7 @@ class MitreAttack:
 @dataclass
 class RuleTestCase:
     name: str
-    event: Dict[str, Any]
+    event: dict[str, Any]
     should_match: bool
 
 
@@ -49,9 +50,9 @@ class DetectionAlert:
     event_id: str
     timestamp: str
     entity_id: str
-    evidence: Dict[str, Any]
+    evidence: dict[str, Any]
     suppressed: bool = False
-    suppression_reason: Optional[str] = None
+    suppression_reason: str | None = None
 
 
 @dataclass
@@ -62,28 +63,28 @@ class DetectionRule:
     severity: DetectionSeverity
     lifecycle: RuleLifecycle
     mitre: MitreAttack
-    evaluator: Callable[[Dict[str, Any]], bool]
-    extract_entity: Callable[[Dict[str, Any]], str]
-    extract_evidence: Callable[[Dict[str, Any]], Dict[str, Any]]
-    suppression_filters: List[Callable[[Dict[str, Any]], Optional[str]]] = field(default_factory=list)
-    test_cases: List[RuleTestCase] = field(default_factory=list)
+    evaluator: Callable[[dict[str, Any]], bool]
+    extract_entity: Callable[[dict[str, Any]], str]
+    extract_evidence: Callable[[dict[str, Any]], dict[str, Any]]
+    suppression_filters: list[Callable[[dict[str, Any]], str | None]] = field(default_factory=list)
+    test_cases: list[RuleTestCase] = field(default_factory=list)
 
 
 class DetectionEngine:
     """Detection-as-Code evaluation engine with rule lifecycle controls."""
 
     def __init__(self) -> None:
-        self._rules: Dict[str, DetectionRule] = {}
+        self._rules: dict[str, DetectionRule] = {}
 
     def register_rule(self, rule: DetectionRule) -> None:
         if rule.rule_id in self._rules:
             raise ValueError(f"Rule {rule.rule_id} is already registered")
         self._rules[rule.rule_id] = rule
 
-    def get_rule(self, rule_id: str) -> Optional[DetectionRule]:
+    def get_rule(self, rule_id: str) -> DetectionRule | None:
         return self._rules.get(rule_id)
 
-    def list_rules(self, lifecycle: Optional[RuleLifecycle] = None) -> List[DetectionRule]:
+    def list_rules(self, lifecycle: RuleLifecycle | None = None) -> list[DetectionRule]:
         if lifecycle is None:
             return list(self._rules.values())
         return [r for r in self._rules.values() if r.lifecycle == lifecycle]
@@ -100,7 +101,7 @@ class DetectionEngine:
         rule.lifecycle = new_lifecycle
         return rule
 
-    def test_rule_harness(self, rule_id: str) -> List[str]:
+    def test_rule_harness(self, rule_id: str) -> list[str]:
         """Runs rule test cases verifying expected matches and true/false positive behavior."""
         rule = self._rules.get(rule_id)
         if not rule:
@@ -115,12 +116,12 @@ class DetectionEngine:
         return failures
 
     def evaluate_event(
-        self, event: Dict[str, Any], include_staging: bool = False
-    ) -> List[DetectionAlert]:
+        self, event: dict[str, Any], include_staging: bool = False
+    ) -> list[DetectionAlert]:
         """Evaluates an event against registered active production/staging rules."""
-        alerts: List[DetectionAlert] = []
+        alerts: list[DetectionAlert] = []
         event_id = str(event.get("event_id") or event.get("id") or "evt-unknown")
-        ts = str(event.get("timestamp") or datetime.now(timezone.utc).isoformat())
+        ts = str(event.get("timestamp") or datetime.now(UTC).isoformat())
 
         for rule in self._rules.values():
             if rule.lifecycle == RuleLifecycle.DEPRECATED or rule.lifecycle == RuleLifecycle.EXPERIMENTAL:
@@ -176,17 +177,17 @@ def build_aws_console_login_without_mfa_rule() -> DetectionRule:
     desc = "Detects successful console login to AWS without multi-factor authentication."
     mitre = MitreAttack("Credential Access", "T1078.004", "Valid Accounts: Cloud Accounts")
 
-    def evaluator(event: Dict[str, Any]) -> bool:
+    def evaluator(event: dict[str, Any]) -> bool:
         src = event.get("eventSource") == "signin.amazonaws.com"
         name = event.get("eventName") == "ConsoleLogin"
         status = event.get("responseElements", {}).get("ConsoleLogin") == "Success"
         mfa_used = event.get("additionalEventData", {}).get("MFAUsed") == "Yes"
         return src and name and status and not mfa_used
 
-    def entity(event: Dict[str, Any]) -> str:
+    def entity(event: dict[str, Any]) -> str:
         return event.get("userIdentity", {}).get("arn") or event.get("userIdentity", {}).get("userName") or "unknown"
 
-    def evidence(event: Dict[str, Any]) -> Dict[str, Any]:
+    def evidence(event: dict[str, Any]) -> dict[str, Any]:
         return {
             "source_ip": event.get("sourceIPAddress"),
             "user_agent": event.get("userAgent"),
@@ -194,7 +195,7 @@ def build_aws_console_login_without_mfa_rule() -> DetectionRule:
         }
 
     # Suppression: Allow internal jumpbox maintenance if specifically tagged
-    def jumpbox_suppression(event: Dict[str, Any]) -> Optional[str]:
+    def jumpbox_suppression(event: dict[str, Any]) -> str | None:
         if event.get("sourceIPAddress") == "10.0.99.1":
             return "Internal automation jumpbox maintenance window"
         return None
@@ -250,7 +251,7 @@ def build_anomalous_iam_assume_role_rule() -> DetectionRule:
     desc = "Detects STS AssumeRole invoked across accounts from external IP addresses."
     mitre = MitreAttack("Privilege Escalation", "T1548", "Abuse Elevation Control Mechanism")
 
-    def evaluator(event: Dict[str, Any]) -> bool:
+    def evaluator(event: dict[str, Any]) -> bool:
         if event.get("eventSource") != "sts.amazonaws.com" or event.get("eventName") != "AssumeRole":
             return False
         request_params = event.get("requestParameters", {})
@@ -258,13 +259,13 @@ def build_anomalous_iam_assume_role_rule() -> DetectionRule:
         # Flag assumptions into administrator or security roles
         is_priv = any(k in target_role.lower() for k in ["admin", "security", "infra", "root"])
         ip = event.get("sourceIPAddress", "")
-        is_external = not (ip.startswith("10.") or ip.startswith("172.16.") or ip.startswith("192.168."))
+        is_external = not (ip.startswith(("10.", "172.16.", "192.168.")))
         return is_priv and is_external
 
-    def entity(event: Dict[str, Any]) -> str:
+    def entity(event: dict[str, Any]) -> str:
         return event.get("requestParameters", {}).get("roleArn") or "unknown-role"
 
-    def evidence(event: Dict[str, Any]) -> Dict[str, Any]:
+    def evidence(event: dict[str, Any]) -> dict[str, Any]:
         return {
             "target_role": event.get("requestParameters", {}).get("roleArn"),
             "caller_arn": event.get("userIdentity", {}).get("arn"),

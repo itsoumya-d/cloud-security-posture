@@ -5,10 +5,10 @@ and produces structured investigation briefings and containment recommendations.
 """
 from __future__ import annotations
 
-import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 from cloudposture.detection_engine import DetectionAlert, DetectionSeverity
 
@@ -18,8 +18,8 @@ class TriageContext:
     entity_id: str
     asset_criticality: str  # low, medium, high, mission_critical
     recent_alert_count: int
-    correlated_posture_findings: List[str]
-    threat_intel_tags: List[str] = field(default_factory=list)
+    correlated_posture_findings: list[str]
+    threat_intel_tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -28,7 +28,7 @@ class EnrichedAlert:
     context: TriageContext
     risk_score: float  # 0.0 to 100.0
     investigation_summary: str
-    recommended_actions: List[str]
+    recommended_actions: list[str]
     triaged_at: str
 
 
@@ -37,15 +37,15 @@ class AlertTriagePipeline:
 
     def __init__(
         self,
-        llm_analyzer: Optional[Callable[[DetectionAlert, TriageContext], str]] = None,
+        llm_analyzer: Callable[[DetectionAlert, TriageContext], str] | None = None,
     ) -> None:
         self.llm_analyzer = llm_analyzer
 
     def enrich_alert(
         self,
         alert: DetectionAlert,
-        historical_alerts: List[DetectionAlert],
-        posture_findings: Optional[List[Dict[str, Any]]] = None,
+        historical_alerts: list[DetectionAlert],
+        posture_findings: list[dict[str, Any]] | None = None,
     ) -> EnrichedAlert:
         """Enriches an alert with entity velocity, posture correlation, and threat scores."""
         entity = alert.entity_id
@@ -55,7 +55,7 @@ class AlertTriagePipeline:
         recent_count = len(entity_alerts)
 
         # Correlate with static posture findings
-        correlated_findings: List[str] = []
+        correlated_findings: list[str] = []
         if posture_findings:
             for f in posture_findings:
                 res_id = str(f.get("resource_id", ""))
@@ -111,12 +111,12 @@ class AlertTriagePipeline:
             risk_score=round(score, 1),
             investigation_summary=summary,
             recommended_actions=actions,
-            triaged_at=datetime.now(timezone.utc).isoformat(),
+            triaged_at=datetime.now(UTC).isoformat(),
         )
 
     def _synthesize_investigation(
         self, alert: DetectionAlert, context: TriageContext
-    ) -> tuple[str, List[str]]:
+    ) -> tuple[str, list[str]]:
         """Generates investigation summary and containment runbook items."""
         if self.llm_analyzer:
             try:
@@ -145,7 +145,7 @@ class AlertTriagePipeline:
 
     def _generate_containment_actions(
         self, alert: DetectionAlert, context: TriageContext
-    ) -> List[str]:
+    ) -> list[str]:
         actions = []
         if alert.severity in (DetectionSeverity.HIGH, DetectionSeverity.CRITICAL):
             actions.append(f"Revoke all active STS sessions and refresh tokens for principal '{context.entity_id}'")

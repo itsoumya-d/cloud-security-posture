@@ -1,11 +1,10 @@
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
-
 from alembic import context
-from cloudposture.db import Base, database_url
+from sqlalchemy import engine_from_config, pool
+
 from cloudposture import tables  # noqa: F401
+from cloudposture.db import Base, database_url
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -6,8 +6,11 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from cloudposture.db import Base
-from cloudposture.service import CloudPostureService, NotFoundError, ValidationError
-from cloudposture.detection_engine import DetectionEngine, build_aws_console_login_without_mfa_rule
+from cloudposture.detection_engine import (
+    DetectionEngine,
+    build_aws_console_login_without_mfa_rule,
+)
+from cloudposture.service import CloudPostureService
 
 
 @pytest.fixture()
