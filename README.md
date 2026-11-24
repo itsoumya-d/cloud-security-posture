@@ -58,6 +58,11 @@ enriched = triage.enrich_alert(alerts[0], historical_alerts=[...])
 print(enriched.risk_score, enriched.investigation_summary, enriched.recommended_actions)
 ```
 
+## Core Capabilities
+
+- **Protective Security Requirements (PSR) & NZISM Architecture Governance** (`cloudposture.psr_security_governance`): Evaluates cloud architecture blueprints against NZISM Chapter 14/16/18 and PSR core controls (TLS 1.3 transit encryption, zero-trust MFA boundaries, customer-managed KMS encryption, and immutable audit telemetry), calculating compliance scores and generating prescriptive remediation runbooks.
+- **Automated Cloud Posture & Detection Engine**: Continuous CIS benchmark evaluation, IAM privilege auditing, and threat detection.
+
 ## Run locally & Tests
 
 ```bash
